@@ -1,1 +1,44 @@
-print("hello world")
+import pygame
+import sys
+from Particle import Class
+
+pygame.init()
+
+# Screen dimensions
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+GRAY = (128, 128, 128)
+YELLOW = (255, 255, 0)
+
+# FPS
+FPS = 60
+clock = pygame.time.Clock()
+
+# display
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+
+
+# Main game loop
+running = True
+while running:
+    clock.tick(FPS)
+    
+    # events
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+    
+    
+    # Draw
+    screen.fill(BLACK)
+    pygame.display.flip()
+
+pygame.quit()
+sys.exit()
