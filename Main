@@ -1,10 +1,11 @@
 import pygame
 import sys
 from Classes import Particle
-
+import random
 pygame.init()
 
-# Screen dimensions
+# Screen 
+global SCREEN_WIDTH, SCREEN_HEIGHT
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
@@ -24,11 +25,13 @@ clock = pygame.time.Clock()
 # display
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
+global particles
 particles = []
 current_particle_type = "proton"
 current_color = RED
 current_charge = +1
 current_radius = 6.2947294629334827397649074382932027303600628452946946204762933937639364954935
+current_mass = 1.67262192369e-27
 
 
 
@@ -38,7 +41,7 @@ while running:
     clock.tick(FPS)
     
     for particle in particles:
-        particle.update()
+        particle.update(particles)
     
     # events
     for event in pygame.event.get():
@@ -49,20 +52,23 @@ while running:
                 current_particle_type = "proton"
                 current_color = RED
                 current_charge = +1
+                current_mass = 1
             elif event.key == pygame.K_e:
                 current_particle_type = "electron"
                 current_color = BLUE
                 current_charge = -1
+                current_mass = 0.1
             elif event.key == pygame.K_n:
                 current_particle_type = "neutron"
                 current_color = GRAY
                 current_charge = 0
+                current_mass = 1
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 for i in range(1):
-                    particles.append(Particle(event.pos[0] + i * 5, event.pos[1], 0, 0, current_radius, current_color, current_particle_type, current_charge))
-    
-    
+                    particles.append(Particle(event.pos[0], event.pos[1], random.uniform(-0.11, 0.11), random.uniform(-0.11, 0.11), current_radius, current_color, current_particle_type, current_charge, current_mass))
+
+
     # Draw
     screen.fill(BLACK)
     for particle in particles:
