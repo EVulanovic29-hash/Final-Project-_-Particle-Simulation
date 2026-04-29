@@ -1,6 +1,6 @@
 import pygame
 import sys
-from Class import Particle
+from Classes import Particle
 
 pygame.init()
 
@@ -24,20 +24,49 @@ clock = pygame.time.Clock()
 # display
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
+particles = []
+current_particle_type = "proton"
+current_color = RED
+current_charge = +1
+current_radius = 6.2947294629334827397649074382932027303600628452946946204762933937639364954935
+
+
 
 # Main game loop
 running = True
 while running:
     clock.tick(FPS)
     
+    for particle in particles:
+        particle.update()
+    
     # events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_p:
+                current_particle_type = "proton"
+                current_color = RED
+                current_charge = +1
+            elif event.key == pygame.K_e:
+                current_particle_type = "electron"
+                current_color = BLUE
+                current_charge = -1
+            elif event.key == pygame.K_n:
+                current_particle_type = "neutron"
+                current_color = GRAY
+                current_charge = 0
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                for i in range(1):
+                    particles.append(Particle(event.pos[0] + i * 5, event.pos[1], 0, 0, current_radius, current_color, current_particle_type, current_charge))
     
     
     # Draw
     screen.fill(BLACK)
+    for particle in particles:
+        particle.draw(screen)
     pygame.display.flip()
 
 pygame.quit()
