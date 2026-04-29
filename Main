@@ -1,6 +1,6 @@
 import pygame
 import sys
-from Particle import Class
+from Class import Particle
 
 pygame.init()
 
