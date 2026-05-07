@@ -1,84 +1,117 @@
 import pygame
 import sys
-from Classes import Particle, reset_particles, set_particles
+import math
 import random
+
+from Classes import (
+    Particle,
+    set_particles,
+    reset_particles,
+    update_particles,
+    ELECTROSTATIC_CONSTANT
+)
+
 pygame.init()
 
-# Screen 
-global SCREEN_WIDTH, SCREEN_HEIGHT
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-
-# Colors
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-GRAY = (128, 128, 128)
-YELLOW = (255, 255, 0)
-
-# FPS
-FPS = 900
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
 
-# display
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+GRAY = (150, 150, 150)
 
-global particles
 particles = []
 set_particles(particles)
-current_particle_type = "proton"
+
+current_type = "proton"
 current_color = RED
-current_charge = +1
-current_radius = 3.2947294629334827397649074382932027303600628452946946204762933937639364954935
-current_mass = 1.67262192369e-27
+current_charge = 1
+current_mass = 1
+current_radius = 4
 
-
-
-# Main game loop
 running = True
 while running:
-    clock.tick(FPS)
-    
-    for particle in particles:
-        particle.update(particles)
-    
-    # events
+    clock.tick(60)
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_p:
-                current_particle_type = "proton"
+                current_type = "proton"
                 current_color = RED
-                current_charge = +1
+                current_charge = 1
                 current_mass = 1
-                current_radius = 3
+                current_radius = 4
+
             elif event.key == pygame.K_e:
-                current_particle_type = "electron"
+                current_type = "electron"
                 current_color = BLUE
                 current_charge = -1
-                current_mass = 0.1
-                current_radius = 2
+                current_mass = 0.05
+                current_radius = 1
+
             elif event.key == pygame.K_n:
-                current_particle_type = "neutron"
+                current_type = "neutron"
                 current_color = GRAY
                 current_charge = 0
                 current_mass = 1
-                current_radius = 3
+                current_radius = 4
+
             elif event.key == pygame.K_r:
                 reset_particles()
+
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
-                for i in range(1):
-                    particles.append(Particle(event.pos[0], event.pos[1], random.uniform(-0.11, 0.11), random.uniform(-0.11, 0.11), current_radius, current_color, current_particle_type, current_charge, current_mass))
+                x, y = event.pos
 
+                dx = random.uniform(-1, 1)
+                dy = random.uniform(-1, 1)
 
-    # Draw
+                if current_type == "electron":
+                    nearest_proton = None
+                    nearest_dist = float("inf")
+
+                    for p in particles:
+                        if p.type == "proton":
+                            d = math.hypot(x - p.x, y - p.y)
+                            if d < nearest_dist:
+                                nearest_dist = d
+                                nearest_proton = p
+
+                    if nearest_proton and 10 < nearest_dist < 200:
+                        dxp = x - nearest_proton.x
+                        dyp = y - nearest_proton.y
+                        dist = math.hypot(dxp, dyp)
+
+                        dir_x = dxp / dist
+                        dir_y = dyp / dist
+
+                        tan_x = -dir_y
+                        tan_y = dir_x
+
+                        speed = math.sqrt(
+                            abs(ELECTROSTATIC_CONSTANT * current_charge * nearest_proton.charge)
+                            / (current_mass * dist)
+                        )
+                        speed *= 0.5
+
+                        dx = tan_x * speed
+                        dy = tan_y * speed
+
+                particles.append(
+                    Particle(x, y, dx, dy, current_radius, current_color, current_type, current_charge, current_mass)
+                )
+
+    update_particles()
+
     screen.fill(BLACK)
-    for particle in particles:
-        particle.draw(screen)
+    for p in particles:
+        p.draw(screen)
+
     pygame.display.flip()
 
 pygame.quit()

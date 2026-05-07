@@ -1,20 +1,25 @@
 import pygame
-import sys
 import math
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
-GRAVITATIONAL_CONSTANT = 0.04
-ELECTROSTATIC_CONSTANT = 0.1
-STRONG_FORCE_CONSTANT = 0.2
-WEAK_FORCE_CONSTANT = 0.03
-STRONG_FORCE_RANGE = 50
-WEAK_FORCE_RANGE = 200
-CONTACT_FORCE_CONSTANT = 10.0
-CONTACT_SOFTNESS = 1.5
-ORBIT_RANGE = 120
-ORBIT_SPEED_SCALE = 0.7
-ORBIT_CORRECTION = 0.03
+
+GRAVITATIONAL_CONSTANT = 4
+ELECTROSTATIC_CONSTANT = -(10**3)/50
+
+STRONG_FORCE_CONSTANT = 10**4
+STRONG_FORCE_RANGE = 27.0
+STRONG_FORCE_CORE = 18.0
+
+WEAK_FORCE_CONSTANT = (100)
+WEAK_FORCE_RANGE = 10.0
+
+DAMPING = 1
+TIME_STEP = 0.35
+SUBSTEPS = 8
+MAX_SPEED = 80
+
+
 particles = []
 
 def set_particles(particle_list):
@@ -22,128 +27,141 @@ def set_particles(particle_list):
     particles = particle_list
 
 def reset_particles():
-    global particles
     particles.clear()
 
+
 class Particle:
-    def __init__(self, x, y, dx, dy, radius, color, type, charge, mass):  # Constructor method
+    def __init__(self, x, y, dx, dy, radius, color, type, charge, mass):
         self.x = x
         self.y = y
         self.dx = dx
         self.dy = dy
-        self.color = color
-        self.mass = mass
+        self.ax = 0
+        self.ay = 0
         self.radius = radius
+        self.color = color
         self.type = type
         self.charge = charge
+        self.mass = mass
+
+        # quantum state
+        self.shell_index = 0
+
 
     def draw(self, screen):
-        pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
+        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
 
-    def update(self, particles):
-        for other in particles:
-            if other is self:
-                continue
 
-            dx = other.x - self.x
-            dy = other.y - self.y
-            if abs(dx) > SCREEN_WIDTH / 2:
-                dx -= math.copysign(SCREEN_WIDTH, dx)
-            if abs(dy) > SCREEN_HEIGHT / 2:
-                dy -= math.copysign(SCREEN_HEIGHT, dy)
+# periodic wrap delta
+def wrap_delta(p1, p2):
+    dx = p2.x - p1.x
+    dy = p2.y - p1.y
 
-            distance_sq = dx * dx + dy * dy
-            if distance_sq == 0:
-                continue
+    if dx > SCREEN_WIDTH / 2:
+        dx -= SCREEN_WIDTH
+    elif dx < -SCREEN_WIDTH / 2:
+        dx += SCREEN_WIDTH
 
-            real_distance = math.sqrt(distance_sq)
-            touch_distance = self.radius + other.radius + 5  # Add 5 pixel gap
+    if dy > SCREEN_HEIGHT / 2:
+        dy -= SCREEN_HEIGHT
+    elif dy < -SCREEN_HEIGHT / 2:
+        dy += SCREEN_HEIGHT
 
-            # Repulsion force using real distance
-            if real_distance < touch_distance:
-                repulsion = CONTACT_FORCE_CONSTANT / (real_distance ** 12)
-                accelerationR = repulsion / self.mass
-                max_acceleration = 10.0  # Lower cap to prevent exploding
-                accelerationR = min(accelerationR, max_acceleration)
-                self.dx -= accelerationR * (dx / real_distance)
-                self.dy -= accelerationR * (dy / real_distance)
+    return dx, dy
 
-            # Clamp distance for other forces to prevent singularities
-            min_distance = max(self.radius + other.radius, 5)
-            distance_sq = max(distance_sq, min_distance * min_distance)
-            distance = math.sqrt(distance_sq)
-            direction_x = dx / distance
-            direction_y = dy / distance
 
-            forceG = GRAVITATIONAL_CONSTANT * self.mass * other.mass / distance_sq
-            accelerationG = forceG / self.mass
-            self.dx += accelerationG * direction_x
-            self.dy += accelerationG * direction_y
+def enforce_no_overlap(p1, p2, dx, dy, dist):
+    min_dist = p1.radius + p2.radius
+    if dist <= 0:
+        return
 
-            if self.charge != 0 and other.charge != 0:
-                forceE = ELECTROSTATIC_CONSTANT * self.charge * other.charge / distance_sq
-                accelerationE = forceE / self.mass
-                self.dx -= accelerationE * direction_x
-                self.dy -= accelerationE * direction_y
+    if dist < min_dist:
+        push = (min_dist - dist) * 0.5
+        nx = dx / dist
+        ny = dy / dist
 
-            strong_decay = math.exp(-(distance / STRONG_FORCE_RANGE) ** 2)
-            forceS = STRONG_FORCE_CONSTANT * self.mass * other.mass * strong_decay / (distance_sq + 1)
-            accelerationS = forceS / self.mass
-            self.dx += accelerationS * direction_x
-            self.dy += accelerationS * direction_y
+        p1.x -= nx * push
+        p1.y -= ny * push
+        p2.x += nx * push
+        p2.y += ny * push
 
-            weak_decay = math.exp(-(distance / WEAK_FORCE_RANGE) ** 2)
-            forceW = WEAK_FORCE_CONSTANT * self.mass * other.mass * weak_decay / (distance_sq + 1)
-            accelerationW = forceW / self.mass
-            self.dx += accelerationW * direction_x
-            self.dy += accelerationW * direction_y
 
-            if self.type == "electron" and other.type == "proton":
-                if 10 < real_distance < ORBIT_RANGE:
-                    tangent_x = -direction_y
-                    tangent_y = direction_x
-                    current_tangential = self.dx * tangent_x + self.dy * tangent_y
-                    desired_tangential = math.sqrt(abs(ELECTROSTATIC_CONSTANT * self.charge * other.charge) / (self.mass * real_distance)) * ORBIT_SPEED_SCALE
-                    correction = (desired_tangential - current_tangential) * ORBIT_CORRECTION
-                    self.dx += correction * tangent_x
-                    self.dy += correction * tangent_y
 
-        # Apply damping to prevent excessive speeds
-        damping = 0.95
-        self.dx *= damping
-        self.dy *= damping
 
-        self.x += self.dx
-        self.y += self.dy
+def compute_force(p1, p2):
+    dx, dy = wrap_delta(p1, p2)
 
-        # Separate overlapping particles
-        for other in particles:
-            if other is self:
-                continue
-            dx = other.x - self.x
-            dy = other.y - self.y
-            if abs(dx) > SCREEN_WIDTH / 2:
-                dx -= math.copysign(SCREEN_WIDTH, dx)
-            if abs(dy) > SCREEN_HEIGHT / 2:
-                dy -= math.copysign(SCREEN_HEIGHT, dy)
-            distance_sq = dx * dx + dy * dy
-            real_distance = math.sqrt(distance_sq)
-            touch_distance = self.radius + other.radius + 3
-            if real_distance < touch_distance:
-                separation = (touch_distance - real_distance) * 0.5
-                dir_x = dx / real_distance if real_distance > 0 else 0
-                dir_y = dy / real_distance if real_distance > 0 else 0
-                self.x -= separation * dir_x
-                self.y -= separation * dir_y
-                other.x += separation * dir_x
-                other.y += separation * dir_y
+    dist = math.hypot(dx, dy)
 
-        if self.x < 0:
-            self.x += SCREEN_WIDTH
-        elif self.x > SCREEN_WIDTH:
-            self.x -= SCREEN_WIDTH
-        if self.y < 0:
-            self.y += SCREEN_HEIGHT
-        elif self.y > SCREEN_HEIGHT:
-            self.y -= SCREEN_HEIGHT
+    enforce_no_overlap(p1, p2, dx, dy, dist)
 
+    nx = dx / dist
+    ny = dy / dist
+
+    # gravity 
+    Fg = GRAVITATIONAL_CONSTANT * p1.mass * p2.mass / dist**2
+
+    # electrostatic
+    Fe = ELECTROSTATIC_CONSTANT * p1.charge * p2.charge / dist**2
+
+    # strong force
+    Fs = 0
+    if p1.type in ("proton", "neutron") and p2.type in ("proton", "neutron"):
+        sr = math.exp(-dist / STRONG_FORCE_RANGE)
+        Fs = STRONG_FORCE_CONSTANT * sr * (1/dist**2 + 1/(STRONG_FORCE_RANGE * dist))
+
+        if dist < STRONG_FORCE_CORE:
+            repel_ratio = ((STRONG_FORCE_CORE - dist) / STRONG_FORCE_CORE) ** 2
+            Fs *= -repel_ratio
+
+    # weak force
+    Fw = 0
+    if p1.type in ("proton", "neutron") and p2.type in ("proton", "neutron"):
+        if dist < WEAK_FORCE_RANGE:
+            Fw = WEAK_FORCE_CONSTANT / dist**2
+
+    F = Fg + Fe + Fs + Fw
+
+    return F * nx, F * ny
+
+
+def update_particles():
+    dt = TIME_STEP / SUBSTEPS
+
+    for _ in range(SUBSTEPS):
+
+        for p in particles:
+            p.ax = 0
+            p.ay = 0
+
+        for i in range(len(particles)):
+            for j in range(i + 1, len(particles)):
+                p1 = particles[i]
+                p2 = particles[j]
+
+                fx, fy = compute_force(p1, p2)
+
+                p1.ax += fx / p1.mass
+                p1.ay += fy / p1.mass
+
+                p2.ax -= fx / p2.mass
+                p2.ay -= fy / p2.mass
+
+        for p in particles:
+
+            p.dx += p.ax * dt
+            p.dy += p.ay * dt
+
+            p.dx *= DAMPING
+            p.dy *= DAMPING
+
+            speed = math.hypot(p.dx, p.dy)
+            if speed > MAX_SPEED:
+                p.dx *= MAX_SPEED / speed
+                p.dy *= MAX_SPEED / speed
+
+            p.x += p.dx * dt
+            p.y += p.dy * dt
+
+            p.x %= SCREEN_WIDTH
+            p.y %= SCREEN_HEIGHT
