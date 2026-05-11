@@ -1,3 +1,5 @@
+# Classes.py
+
 import pygame
 import math
 
@@ -11,14 +13,13 @@ STRONG_FORCE_CONSTANT = 10**4
 STRONG_FORCE_RANGE = 27.0
 STRONG_FORCE_CORE = 18.0
 
-WEAK_FORCE_CONSTANT = (100)
+WEAK_FORCE_CONSTANT = 100
 WEAK_FORCE_RANGE = 10.0
 
 DAMPING = 1
 TIME_STEP = 0.35
 SUBSTEPS = 8
 MAX_SPEED = 80
-
 
 particles = []
 
@@ -31,37 +32,51 @@ def reset_particles():
 
 
 class Particle:
+
     def __init__(self, x, y, dx, dy, radius, color, type, charge, mass):
+
         self.x = x
         self.y = y
+
         self.dx = dx
         self.dy = dy
+
         self.ax = 0
         self.ay = 0
+
         self.radius = radius
         self.color = color
+
         self.type = type
         self.charge = charge
         self.mass = mass
 
         self.shell_index = 0
 
-
     def draw(self, screen):
-        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
+
+        pygame.draw.circle(
+            screen,
+            self.color,
+            (int(self.x), int(self.y)),
+            self.radius
+        )
 
 
 def wrap_delta(p1, p2):
+
     dx = p2.x - p1.x
     dy = p2.y - p1.y
 
     if dx > SCREEN_WIDTH / 2:
         dx -= SCREEN_WIDTH
+
     elif dx < -SCREEN_WIDTH / 2:
         dx += SCREEN_WIDTH
 
     if dy > SCREEN_HEIGHT / 2:
         dy -= SCREEN_HEIGHT
+
     elif dy < -SCREEN_HEIGHT / 2:
         dy += SCREEN_HEIGHT
 
@@ -69,27 +84,34 @@ def wrap_delta(p1, p2):
 
 
 def enforce_no_overlap(p1, p2, dx, dy, dist):
+
     min_dist = p1.radius + p2.radius
+
     if dist <= 0:
         return
 
     if dist < min_dist:
+
         push = (min_dist - dist) * 0.5
+
         nx = dx / dist
         ny = dy / dist
 
         p1.x -= nx * push
         p1.y -= ny * push
+
         p2.x += nx * push
         p2.y += ny * push
 
 
-
-
 def compute_force(p1, p2):
+
     dx, dy = wrap_delta(p1, p2)
 
     dist = math.hypot(dx, dy)
+
+    if dist <= 0.0001:
+        return 0, 0
 
     enforce_no_overlap(p1, p2, dx, dy, dist)
 
@@ -97,19 +119,34 @@ def compute_force(p1, p2):
     ny = dy / dist
 
     Fg = GRAVITATIONAL_CONSTANT * p1.mass * p2.mass / dist**2
+
     Fe = ELECTROSTATIC_CONSTANT * p1.charge * p2.charge / dist**2
 
     Fs = 0
+
     if p1.type in ("proton", "neutron") and p2.type in ("proton", "neutron"):
+
         sr = math.exp(-dist / STRONG_FORCE_RANGE)
-        Fs = STRONG_FORCE_CONSTANT * sr * (1/dist**2 + 1/(STRONG_FORCE_RANGE * dist))
+
+        Fs = (
+            STRONG_FORCE_CONSTANT
+            * sr
+            * (1/dist**2 + 1/(STRONG_FORCE_RANGE * dist))
+        )
 
         if dist < STRONG_FORCE_CORE:
-            repel_ratio = ((STRONG_FORCE_CORE - dist) / STRONG_FORCE_CORE) ** 2
+
+            repel_ratio = (
+                (STRONG_FORCE_CORE - dist)
+                / STRONG_FORCE_CORE
+            ) ** 2
+
             Fs *= -repel_ratio
 
     Fw = 0
+
     if p1.type in ("proton", "neutron") and p2.type in ("proton", "neutron"):
+
         if dist < WEAK_FORCE_RANGE:
             Fw = WEAK_FORCE_CONSTANT / dist**2
 
@@ -119,6 +156,7 @@ def compute_force(p1, p2):
 
 
 def update_particles():
+
     dt = TIME_STEP / SUBSTEPS
 
     for _ in range(SUBSTEPS):
@@ -128,7 +166,9 @@ def update_particles():
             p.ay = 0
 
         for i in range(len(particles)):
+
             for j in range(i + 1, len(particles)):
+
                 p1 = particles[i]
                 p2 = particles[j]
 
@@ -149,7 +189,9 @@ def update_particles():
             p.dy *= DAMPING
 
             speed = math.hypot(p.dx, p.dy)
+
             if speed > MAX_SPEED:
+
                 p.dx *= MAX_SPEED / speed
                 p.dy *= MAX_SPEED / speed
 
@@ -158,3 +200,39 @@ def update_particles():
 
             p.x %= SCREEN_WIDTH
             p.y %= SCREEN_HEIGHT
+
+
+def throw(particle):
+
+    first_click_pos = None
+    second_click_pos = None
+
+    while first_click_pos is None:
+
+        for event in pygame.event.get():
+
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                first_click_pos = pygame.mouse.get_pos()
+
+    while second_click_pos is None:
+
+        for event in pygame.event.get():
+
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                second_click_pos = pygame.mouse.get_pos()
+
+    vx = (second_click_pos[0] - first_click_pos[0]) * 0.2
+    vy = (second_click_pos[1] - first_click_pos[1]) * 0.2
+
+    particle.dx += vx
+    particle.dy += vy
+
+    return vx, vy
