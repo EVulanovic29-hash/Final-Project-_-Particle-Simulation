@@ -1,5 +1,3 @@
-# Classes.py
-
 import pygame
 import math
 
@@ -24,8 +22,10 @@ MAX_SPEED = 80
 particles = []
 
 def set_particles(particle_list):
+
     global particles
     particles = particle_list
+
 
 def reset_particles():
     particles.clear()
@@ -162,6 +162,7 @@ def update_particles():
     for _ in range(SUBSTEPS):
 
         for p in particles:
+
             p.ax = 0
             p.ay = 0
 

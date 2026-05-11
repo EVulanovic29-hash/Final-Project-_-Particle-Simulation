@@ -14,6 +14,7 @@ from Classes import (
 pygame.init()
 
 WIDTH, HEIGHT = 800, 600
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Particle Simulator")
 
@@ -35,15 +36,23 @@ current_mass = 1
 current_radius = 4
 
 throw_mode = False
+paused = False
 
 running = True
+
 while running:
+
     clock.tick(90)
 
     screen.fill(BLACK)
 
     font = pygame.font.SysFont(None, 24)
-    text = "THROW MODE: ON" if throw_mode else "THROW MODE: OFF"
+
+    text = (
+        f"THROW MODE: {'ON' if throw_mode else 'OFF'} | "
+        f"{'PAUSED' if paused else 'RUNNING'}"
+    )
+
     screen.blit(font.render(text, True, WHITE), (10, 10))
 
     for event in pygame.event.get():
@@ -54,6 +63,7 @@ while running:
         elif event.type == pygame.KEYDOWN:
 
             if event.key == pygame.K_p:
+
                 current_type = "proton"
                 current_color = RED
                 current_charge = 1
@@ -61,6 +71,7 @@ while running:
                 current_radius = 4
 
             elif event.key == pygame.K_e:
+
                 current_type = "electron"
                 current_color = BLUE
                 current_charge = -1
@@ -68,6 +79,7 @@ while running:
                 current_radius = 1
 
             elif event.key == pygame.K_n:
+
                 current_type = "neutron"
                 current_color = GRAY
                 current_charge = 0
@@ -79,6 +91,9 @@ while running:
 
             elif event.key == pygame.K_q:
                 throw_mode = not throw_mode
+
+            elif event.key == pygame.K_SPACE:
+                paused = not paused
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
 
@@ -152,7 +167,8 @@ while running:
                         )
                     )
 
-    update_particles()
+    if not paused:
+        update_particles()
 
     for p in particles:
         p.draw(screen)
