@@ -44,7 +44,6 @@ class Particle:
         self.charge = charge
         self.mass = mass
 
-        # quantum state
         self.shell_index = 0
 
 
@@ -52,7 +51,6 @@ class Particle:
         pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
 
 
-# periodic wrap delta
 def wrap_delta(p1, p2):
     dx = p2.x - p1.x
     dy = p2.y - p1.y
@@ -98,13 +96,9 @@ def compute_force(p1, p2):
     nx = dx / dist
     ny = dy / dist
 
-    # gravity 
     Fg = GRAVITATIONAL_CONSTANT * p1.mass * p2.mass / dist**2
-
-    # electrostatic
     Fe = ELECTROSTATIC_CONSTANT * p1.charge * p2.charge / dist**2
 
-    # strong force
     Fs = 0
     if p1.type in ("proton", "neutron") and p2.type in ("proton", "neutron"):
         sr = math.exp(-dist / STRONG_FORCE_RANGE)
@@ -114,7 +108,6 @@ def compute_force(p1, p2):
             repel_ratio = ((STRONG_FORCE_CORE - dist) / STRONG_FORCE_CORE) ** 2
             Fs *= -repel_ratio
 
-    # weak force
     Fw = 0
     if p1.type in ("proton", "neutron") and p2.type in ("proton", "neutron"):
         if dist < WEAK_FORCE_RANGE:

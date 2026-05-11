@@ -19,6 +19,7 @@ clock = pygame.time.Clock()
 
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
+GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
 GRAY = (150, 150, 150)
 
@@ -33,7 +34,7 @@ current_radius = 4
 
 running = True
 while running:
-    clock.tick(60)
+    clock.tick(90)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
