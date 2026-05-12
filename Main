@@ -1,6 +1,7 @@
 import pygame
 import sys
 import math
+import copy
 
 from Classes import (
     Particle,
@@ -14,7 +15,6 @@ from Classes import (
 pygame.init()
 
 WIDTH, HEIGHT = 800, 600
-
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Particle Simulator")
 
@@ -29,6 +29,9 @@ WHITE = (255, 255, 255)
 particles = []
 set_particles(particles)
 
+history = []
+history_index = -1
+
 current_type = "proton"
 current_color = RED
 current_charge = 1
@@ -37,8 +40,48 @@ current_radius = 4
 
 throw_mode = False
 paused = False
+time_control = False
+
+hold_back = False
+hold_forward = False
+
+time_speed = 1
 
 running = True
+
+
+def save_state():
+    global history, history_index
+
+    state = copy.deepcopy(particles)
+
+    history = history[:history_index + 1]
+    history.append(state)
+
+    history_index += 1
+
+
+def load_state(i):
+    global particles
+
+    particles.clear()
+
+    for p in copy.deepcopy(history[i]):
+        particles.append(p)
+
+
+def simulate_forward(steps):
+    global particles
+
+    snapshot = copy.deepcopy(particles)
+
+    for _ in range(steps):
+        update_particles()
+
+    return copy.deepcopy(particles)
+
+
+save_state()
 
 while running:
 
@@ -49,8 +92,10 @@ while running:
     font = pygame.font.SysFont(None, 24)
 
     text = (
-        f"THROW MODE: {'ON' if throw_mode else 'OFF'} | "
-        f"{'PAUSED' if paused else 'RUNNING'}"
+        f"THROW:{'ON' if throw_mode else 'OFF'} | "
+        f"{'PAUSED' if paused else 'RUN'} | "
+        f"TIME:{'ON' if time_control else 'OFF'} | "
+        f"SPEED:{time_speed}"
     )
 
     screen.blit(font.render(text, True, WHITE), (10, 10))
@@ -63,7 +108,6 @@ while running:
         elif event.type == pygame.KEYDOWN:
 
             if event.key == pygame.K_p:
-
                 current_type = "proton"
                 current_color = RED
                 current_charge = 1
@@ -71,7 +115,6 @@ while running:
                 current_radius = 4
 
             elif event.key == pygame.K_e:
-
                 current_type = "electron"
                 current_color = BLUE
                 current_charge = -1
@@ -79,7 +122,6 @@ while running:
                 current_radius = 1
 
             elif event.key == pygame.K_n:
-
                 current_type = "neutron"
                 current_color = GRAY
                 current_charge = 0
@@ -88,6 +130,9 @@ while running:
 
             elif event.key == pygame.K_r:
                 reset_particles()
+                history.clear()
+                history_index = -1
+                save_state()
 
             elif event.key == pygame.K_q:
                 throw_mode = not throw_mode
@@ -95,14 +140,40 @@ while running:
             elif event.key == pygame.K_SPACE:
                 paused = not paused
 
+            elif event.key == pygame.K_t:
+                time_control = not time_control
+
+            elif event.key == pygame.K_g:
+                if time_control:
+                    hold_back = True
+
+            elif event.key == pygame.K_h:
+                if time_control:
+                    hold_forward = True
+
+            elif event.key == pygame.K_UP:
+                if time_control:
+                    time_speed += 1
+
+            elif event.key == pygame.K_DOWN:
+                if time_control:
+                    time_speed = max(1, time_speed - 1)
+
+        elif event.type == pygame.KEYUP:
+
+            if event.key == pygame.K_g:
+                hold_back = False
+
+            elif event.key == pygame.K_h:
+                hold_forward = False
+
         elif event.type == pygame.MOUSEBUTTONDOWN:
 
             if event.button == 1:
 
-                if throw_mode:
-
-                    if particles:
-                        throw(particles[-1])
+                if throw_mode and particles:
+                    throw(particles[-1])
+                    save_state()
 
                 else:
 
@@ -113,52 +184,39 @@ while running:
 
                     if current_type == "electron":
 
-                        nearest_proton = None
-                        nearest_dist = float("inf")
+                        nearest = None
+                        best = float("inf")
 
                         for p in particles:
-
                             if p.type == "proton":
-
                                 d = math.hypot(x - p.x, y - p.y)
+                                if d < best:
+                                    best = d
+                                    nearest = p
 
-                                if d < nearest_dist:
-                                    nearest_dist = d
-                                    nearest_proton = p
+                        if nearest and 10 < best < 200:
 
-                        if nearest_proton and 10 < nearest_dist < 200:
-
-                            dxp = x - nearest_proton.x
-                            dyp = y - nearest_proton.y
+                            dxp = x - nearest.x
+                            dyp = y - nearest.y
 
                             dist = math.hypot(dxp, dyp)
 
-                            dir_x = dxp / dist
-                            dir_y = dyp / dist
-
-                            tan_x = -dir_y
-                            tan_y = dir_x
+                            tx = -dyp / dist
+                            ty = dxp / dist
 
                             speed = math.sqrt(
-                                abs(
-                                    ELECTROSTATIC_CONSTANT
-                                    * current_charge
-                                    * nearest_proton.charge
-                                )
+                                abs(ELECTROSTATIC_CONSTANT *
+                                    current_charge *
+                                    nearest.charge)
                                 / (current_mass * dist)
-                            )
+                            ) * 0.5
 
-                            speed *= 0.5
-
-                            dx = tan_x * speed
-                            dy = tan_y * speed
+                            dx = tx * speed
+                            dy = ty * speed
 
                     particles.append(
                         Particle(
-                            x,
-                            y,
-                            dx,
-                            dy,
+                            x, y, dx, dy,
                             current_radius,
                             current_color,
                             current_type,
@@ -167,8 +225,36 @@ while running:
                         )
                     )
 
-    if not paused:
+                    save_state()
+
+    # TIME CONTROL SYSTEM
+
+    if time_control:
+
+        if hold_back:
+
+            for _ in range(time_speed):
+                if history_index > 0:
+                    history_index -= 1
+                    load_state(history_index)
+
+        if hold_forward:
+
+            for _ in range(time_speed):
+
+                if history_index < len(history) - 1:
+
+                    history_index += 1
+                    load_state(history_index)
+
+                else:
+                    particles = simulate_forward(time_speed)
+                    save_state()
+
+    elif not paused:
+
         update_particles()
+        save_state()
 
     for p in particles:
         p.draw(screen)
