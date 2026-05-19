@@ -32,15 +32,18 @@ WHITE = (255, 255, 255)
 particles = []
 set_particles(particles)
 
+# Time history system
 history = []
 history_index = -1
 
+# Current particle settings
 current_type = "proton"
 current_color = RED
 current_charge = 1
 current_mass = 1
 current_radius = 4
 
+# Simulation controls
 throw_mode = False
 paused = False
 time_control = False
@@ -54,6 +57,7 @@ simulation_speed = 1.0
 running = True
 
 
+# Save current simulation state
 def save_state():
 
     global history
@@ -68,6 +72,7 @@ def save_state():
     history_index += 1
 
 
+# Load a previous saved state
 def load_state(i):
 
     particles.clear()
@@ -86,12 +91,14 @@ while running:
 
     font = pygame.font.SysFont(None, 24)
 
+    # UI text
     text = (
         f"THROW:{'ON' if throw_mode else 'OFF'} | "
         f"{'PAUSED' if paused else 'RUN'} | "
         f"TIME:{'ON' if time_control else 'OFF'} | "
         f"SCRUB:{time_speed} | "
-        f"SIM:{simulation_speed:.1f}x"
+        f"SIM:{simulation_speed:.1f}x | "
+        f"Particle Count: {len(particles)}"
     )
 
     screen.blit(font.render(text, True, WHITE), (10, 10))
@@ -103,6 +110,7 @@ while running:
 
         elif event.type == pygame.KEYDOWN:
 
+            # Proton select
             if event.key == pygame.K_p:
 
                 current_type = "proton"
@@ -111,6 +119,7 @@ while running:
                 current_mass = 1
                 current_radius = 4
 
+            # Electron select
             elif event.key == pygame.K_e:
 
                 current_type = "electron"
@@ -119,6 +128,7 @@ while running:
                 current_mass = 0.02
                 current_radius = 1
 
+            # Neutron select
             elif event.key == pygame.K_n:
 
                 current_type = "neutron"
@@ -127,6 +137,7 @@ while running:
                 current_mass = 1
                 current_radius = 4
 
+            # Reset simulation
             elif event.key == pygame.K_r:
 
                 reset_particles()
@@ -136,14 +147,17 @@ while running:
 
                 save_state()
 
+            # Toggle throw mode
             elif event.key == pygame.K_q:
 
                 throw_mode = not throw_mode
 
+            # Pause simulation
             elif event.key == pygame.K_SPACE:
 
                 paused = not paused
 
+            # Toggle time control mode
             elif event.key == pygame.K_t:
 
                 time_control = not time_control
@@ -151,26 +165,31 @@ while running:
                 if not time_control:
                     history_index = len(history) - 1
 
+            # Hold rewind
             elif event.key == pygame.K_g:
 
                 if time_control:
                     hold_back = True
 
+            # Hold fast-forward
             elif event.key == pygame.K_h:
 
                 if time_control:
                     hold_forward = True
 
+            # Increase scrub speed
             elif event.key == pygame.K_UP:
 
                 if time_control:
                     time_speed += 1
 
+            # Decrease scrub speed
             elif event.key == pygame.K_DOWN:
 
                 if time_control:
                     time_speed = max(1, time_speed - 1)
 
+            # Increase simulation speed
             elif event.key == pygame.K_RIGHT:
 
                 keys = pygame.key.get_pressed()
@@ -185,6 +204,7 @@ while running:
                     1
                 )
 
+            # Decrease simulation speed
             elif event.key == pygame.K_LEFT:
 
                 keys = pygame.key.get_pressed()
@@ -211,6 +231,7 @@ while running:
 
             if event.button == 1:
 
+                # Throw latest particle
                 if throw_mode and particles:
 
                     throw(particles[-1])
@@ -224,8 +245,7 @@ while running:
                     dx = 0
                     dy = 0
 
-                    # REAL ORBITAL VELOCITY
-
+                    # Electron orbit setup
                     if current_type == "electron":
 
                         nearest = None
@@ -255,19 +275,15 @@ while running:
                                 dyp
                             )
 
-                            # radial unit vector
-
+                            # Radial direction
                             nx = dxp / dist
                             ny = dyp / dist
 
-                            # tangential unit vector
-
+                            # Tangential direction
                             tx = -ny
                             ty = nx
 
-                            # circular orbit equation
-                            # v = sqrt(F*r/m)
-
+                            # Circular orbit equation
                             orbital_speed = math.sqrt(
                                 (
                                     abs(
@@ -288,11 +304,11 @@ while running:
                             dx = tx * orbital_speed
                             dy = ty * orbital_speed
 
-                            # inherit proton motion
-
+                            # Inherit nucleus motion
                             dx += nearest.dx
                             dy += nearest.dy
 
+                    # Create particle
                     particles.append(
                         Particle(
                             x,
@@ -309,6 +325,7 @@ while running:
 
                     save_state()
 
+    # Time control system
     if time_control:
 
         if hold_back:
@@ -333,6 +350,7 @@ while running:
 
         if not paused:
 
+            # Faster than realtime
             if simulation_speed >= 1:
 
                 for _ in range(int(simulation_speed)):
@@ -340,6 +358,7 @@ while running:
                     update_particles()
                     save_state()
 
+            # Slower than realtime
             else:
 
                 slow_factor = int(
@@ -353,6 +372,7 @@ while running:
 
             history_index = len(history) - 1
 
+    # Draw particles
     for p in particles:
         p.draw(screen)
 
