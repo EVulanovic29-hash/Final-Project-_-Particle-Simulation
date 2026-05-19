@@ -5,24 +5,29 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
 GRAVITATIONAL_CONSTANT = 4
-ELECTROSTATIC_CONSTANT = -(10**3)/50
 
-STRONG_FORCE_CONSTANT = 10**4
-STRONG_FORCE_RANGE = 27.0
-STRONG_FORCE_CORE = 18.0
+ELECTROSTATIC_CONSTANT = -434
 
-WEAK_FORCE_CONSTANT = 100
+SOFTENING = 2.0
+
+STRONG_FORCE_CONSTANT = 350000
+STRONG_FORCE_RANGE = 22.0
+STRONG_FORCE_CORE = 10.0
+
+WEAK_FORCE_CONSTANT = 9
 WEAK_FORCE_RANGE = 10.0
 
-DAMPING = 1
-TIME_STEP = 0.35
-SUBSTEPS = 8
-MAX_SPEED = 80
+DAMPING = 1.0
+
+TIME_STEP = 0.02
+SUBSTEPS = 32
+
+MAX_SPEED = 10000
 
 particles = []
 
-def set_particles(particle_list):
 
+def set_particles(particle_list):
     global particles
     particles = particle_list
 
@@ -33,8 +38,18 @@ def reset_particles():
 
 class Particle:
 
-    def __init__(self, x, y, dx, dy, radius, color, type, charge, mass):
-
+    def __init__(
+        self,
+        x,
+        y,
+        dx,
+        dy,
+        radius,
+        color,
+        type,
+        charge,
+        mass
+    ):
         self.x = x
         self.y = y
 
@@ -51,10 +66,7 @@ class Particle:
         self.charge = charge
         self.mass = mass
 
-        self.shell_index = 0
-
     def draw(self, screen):
-
         pygame.draw.circle(
             screen,
             self.color,
@@ -64,19 +76,16 @@ class Particle:
 
 
 def wrap_delta(p1, p2):
-
     dx = p2.x - p1.x
     dy = p2.y - p1.y
 
     if dx > SCREEN_WIDTH / 2:
         dx -= SCREEN_WIDTH
-
     elif dx < -SCREEN_WIDTH / 2:
         dx += SCREEN_WIDTH
 
     if dy > SCREEN_HEIGHT / 2:
         dy -= SCREEN_HEIGHT
-
     elif dy < -SCREEN_HEIGHT / 2:
         dy += SCREEN_HEIGHT
 
@@ -85,13 +94,12 @@ def wrap_delta(p1, p2):
 
 def enforce_no_overlap(p1, p2, dx, dy, dist):
 
-    min_dist = p1.radius + p2.radius
-
-    if dist <= 0:
+    if "electron" in (p1.type, p2.type):
         return
 
-    if dist < min_dist:
+    min_dist = p1.radius + p2.radius
 
+    if dist < min_dist and dist > 0:
         push = (min_dist - dist) * 0.5
 
         nx = dx / dist
@@ -99,7 +107,6 @@ def enforce_no_overlap(p1, p2, dx, dy, dist):
 
         p1.x -= nx * push
         p1.y -= ny * push
-
         p2.x += nx * push
         p2.y += ny * push
 
@@ -107,10 +114,9 @@ def enforce_no_overlap(p1, p2, dx, dy, dist):
 def compute_force(p1, p2):
 
     dx, dy = wrap_delta(p1, p2)
-
     dist = math.hypot(dx, dy)
 
-    if dist <= 0.0001:
+    if dist <= 0.000001:
         return 0, 0
 
     enforce_no_overlap(p1, p2, dx, dy, dist)
@@ -118,9 +124,21 @@ def compute_force(p1, p2):
     nx = dx / dist
     ny = dy / dist
 
-    Fg = GRAVITATIONAL_CONSTANT * p1.mass * p2.mass / dist**2
+    softened_dist = math.sqrt(dist**2 + SOFTENING**2)
 
-    Fe = ELECTROSTATIC_CONSTANT * p1.charge * p2.charge / dist**2
+    Fg = (
+        GRAVITATIONAL_CONSTANT
+        * p1.mass
+        * p2.mass
+        / softened_dist**2
+    )
+
+    Fe = (
+        ELECTROSTATIC_CONSTANT
+        * p1.charge
+        * p2.charge
+        / softened_dist**2
+    )
 
     Fs = 0
 
@@ -131,24 +149,18 @@ def compute_force(p1, p2):
         Fs = (
             STRONG_FORCE_CONSTANT
             * sr
-            * (1/dist**2 + 1/(STRONG_FORCE_RANGE * dist))
+            / softened_dist**2
         )
 
         if dist < STRONG_FORCE_CORE:
-
-            repel_ratio = (
-                (STRONG_FORCE_CORE - dist)
-                / STRONG_FORCE_CORE
-            ) ** 2
-
-            Fs *= -repel_ratio
+            core_push = ((STRONG_FORCE_CORE - dist) / STRONG_FORCE_CORE) ** 2
+            Fs *= -core_push
 
     Fw = 0
 
     if p1.type in ("proton", "neutron") and p2.type in ("proton", "neutron"):
-
         if dist < WEAK_FORCE_RANGE:
-            Fw = WEAK_FORCE_CONSTANT / dist**2
+            Fw = WEAK_FORCE_CONSTANT / softened_dist**2
 
     F = Fg + Fe + Fs + Fw
 
@@ -162,12 +174,10 @@ def update_particles():
     for _ in range(SUBSTEPS):
 
         for p in particles:
-
             p.ax = 0
             p.ay = 0
 
         for i in range(len(particles)):
-
             for j in range(i + 1, len(particles)):
 
                 p1 = particles[i]
@@ -186,21 +196,58 @@ def update_particles():
             p.dx += p.ax * dt
             p.dy += p.ay * dt
 
-            p.dx *= DAMPING
-            p.dy *= DAMPING
-
             speed = math.hypot(p.dx, p.dy)
-
             if speed > MAX_SPEED:
-
-                p.dx *= MAX_SPEED / speed
-                p.dy *= MAX_SPEED / speed
+                scale = MAX_SPEED / speed
+                p.dx *= scale
+                p.dy *= scale
 
             p.x += p.dx * dt
             p.y += p.dy * dt
 
             p.x %= SCREEN_WIDTH
             p.y %= SCREEN_HEIGHT
+
+    apply_nuclear_stabilization()
+
+
+def apply_nuclear_stabilization():
+
+    for i in range(len(particles)):
+        for j in range(i + 1, len(particles)):
+
+            p1 = particles[i]
+            p2 = particles[j]
+
+            if p1.type in ("proton", "neutron") and p2.type in ("proton", "neutron"):
+
+                dx = p2.x - p1.x
+                dy = p2.y - p1.y
+                dist = math.hypot(dx, dy)
+
+                if 0 < dist < STRONG_FORCE_RANGE:
+
+                    vx = p2.dx - p1.dx
+                    vy = p2.dy - p1.dy
+
+                    damping = 0.03
+
+                    p1.dx += vx * damping
+                    p1.dy += vy * damping
+                    p2.dx -= vx * damping
+                    p2.dy -= vy * damping
+
+                    tx = -dy / dist
+                    ty = dx / dist
+
+                    rel_v = p1.dx * tx + p1.dy * ty
+
+                    max_spin = 2.0
+
+                    if abs(rel_v) > max_spin:
+                        correction = (max_spin - rel_v) * 0.1
+                        p1.dx += tx * correction
+                        p1.dy += ty * correction
 
 
 def throw(particle):
